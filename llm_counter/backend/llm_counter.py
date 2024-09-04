@@ -1,0 +1,26 @@
+# llm_counter/api/llm_counter.py
+from fastapi import FastAPI
+from pydantic import BaseModel
+import openai
+
+app = FastAPI()
+
+openai.api_key = "your-openai-api-key"
+
+class CountInput(BaseModel):
+    text: str
+    words: list[str]
+
+@app.post("/api/llm-count")
+async def llm_count(input: CountInput):
+    prompt = f"Count the occurrences of the following words in the given text. Only return the counts as a comma-separated list of numbers.\n\nWords: {', '.join(input.words)}\n\nText: {input.text}"
+    response = openai.Completion.create(
+        engine="gpt-4o",
+        prompt=prompt,
+        max_tokens=50,
+        n=1,
+        stop=None,
+        temperature=0.0,
+    )
+    counts = [int(count.strip()) for count in response.choices[0].text.split(',')]
+    return {"counts": counts}
