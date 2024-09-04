@@ -2,10 +2,14 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 import openai
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = FastAPI()
 
-openai.api_key = "your-openai-api-key"
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 class CountInput(BaseModel):
     text: str

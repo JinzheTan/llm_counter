@@ -1,11 +1,15 @@
 from fastapi import FastAPI, HTTPException
 from faker import Faker
 import openai
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = FastAPI()
 fake = Faker()
 
-openai.api_key = "sk-proj-2rGTMnnu3fox2DBQiPd9T3BlbkFJuR0aNaYB7XHzAWxVHSDO"
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 @app.post("/api/generate-article")
 async def generate_article():

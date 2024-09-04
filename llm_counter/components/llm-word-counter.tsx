@@ -43,7 +43,11 @@ export function LlmWordCounter() {
       body: JSON.stringify({ text: content, words: data.topWords.map((w: WordCount) => w.word) }),
     });
     const llmData = await llmResponse.json();
-    setLlmCounts(llmData.counts);
+    if (llmData.counts) {
+      setLlmCounts(llmData.counts);
+    } else {
+      console.error('LLM count failed:', llmData.error);
+    }
   }
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -166,7 +170,8 @@ export function LlmWordCounter() {
             <div>
               <h3 className="text-lg font-semibold mb-2">Highlighted Text</h3>
               <div
-                className="border p-4 rounded-md max-h-60 overflow-auto"
+                className="border p-4 rounded-md max-h-60 overflow-auto text-sm font-sans"
+                style={{ fontFamily: 'inherit' }}
                 dangerouslySetInnerHTML={{ __html: highlightWords(text) }}
               />
             </div>
@@ -175,13 +180,9 @@ export function LlmWordCounter() {
       </CardContent>
       <CardFooter className="flex justify-between">
         <div className="flex gap-2">
-          <Button variant="default" className="bg-black text-white hover:bg-gray-800" onClick={() => countWords(text)}>
-            Count
-          </Button>
           <Button onClick={generateArticle} disabled={isLoading}>
             {isLoading ? 'Generating...' : 'Generate Random Article'}
           </Button>
-          <Button onClick={crawlArticle}>Crawl Random Article</Button>
         </div>
         <div className="flex items-center gap-2">
           <input
