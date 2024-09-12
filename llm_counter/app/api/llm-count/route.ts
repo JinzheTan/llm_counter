@@ -6,11 +6,11 @@ const openai = new OpenAI({
 });
 
 export async function POST(request: Request) {
-  const { text, words } = await request.json();
+  const { text, words, model } = await request.json();
 
   try {
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: model, // 使用从前端传来的模型
       messages: [
         { role: "system", content: "You are a helpful assistant that counts word occurrences." },
         { role: "user", content: `Count the occurrences of the following words in the given text. Only return the counts as a comma-separated list of numbers.\n\nWords: ${words.join(', ')}\n\nText: ${text}` }

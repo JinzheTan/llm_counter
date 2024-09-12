@@ -12,14 +12,23 @@ type WordCount = {
   count: number;
 }
 
+const models = [
+  { id: 'gpt-3.5-turbo', name: 'GPT 3.5' },
+  { id: 'gpt-4', name: 'GPT 4' },
+  { id: 'gpt-4o', name: 'GPT 4o' },
+  { id: 'o1-preview', name: 'o1-preview' },
+];
+
 export function LlmWordCounter() {
   const [text, setText] = useState('')
   const [topWords, setTopWords] = useState<WordCount[]>([])
   const [llmCounts, setLlmCounts] = useState<number[]>([])
+  const [wordsToCount, setWordsToCount] = useState<string[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [selectedModel, setSelectedModel] = useState(models[0].id);
 
-  const sampleOptions = ['ChatGPT', 'GPT4', 'Llama3.1']
+  
   const colors = ['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF', '#FFA500', '#800080', '#008000', '#FFC0CB']
 
   useEffect(() => {
@@ -28,27 +37,28 @@ export function LlmWordCounter() {
     }
   }, [text])
 
-  const countWords = async (content: string) => {
-    const response = await fetch('/api/count-words', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: content }),
-    });
-    const data = await response.json();
-    setTopWords(data.topWords);
-
-    const llmResponse = await fetch('/api/llm-count', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: content, words: data.topWords.map((w: WordCount) => w.word) }),
-    });
-    const llmData = await llmResponse.json();
-    if (llmData.counts) {
-      setLlmCounts(llmData.counts);
-    } else {
-      console.error('LLM count failed:', llmData.error);
+  const countWords = async (text: string) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/llm-count', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text,
+          words: wordsToCount,
+          model: selectedModel, // 添加选定的模型
+        }),
+      });
+      const data = await response.json();
+      setLlmCounts(data.counts);
+    } catch (error) {
+      console.error('Error counting words:', error);
+    } finally {
+      setIsLoading(false);
     }
-  }
+  };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -56,7 +66,7 @@ export function LlmWordCounter() {
       const reader = new FileReader()
       reader.onload = (e) => {
         const content = e.target?.result as string
-        setText(content)
+        updateText(content)
       }
       reader.readAsText(file)
     }
@@ -76,9 +86,9 @@ export function LlmWordCounter() {
       }
       const data = await response.json();
       console.log("Generated Article:", data.article);
-      console.log("Setting text:", data.article);
-      setText(data.article);
-      countWords(data.article);
+      updateText(data.article);
+      // 移除这行，因为 setText 现在会触发 useEffect 中的 countWords
+      // countWords(data.article);
     } catch (error) {
       console.error("Failed to generate article:", error);
       // You might want to set an error state here and display it to the user
@@ -94,7 +104,7 @@ export function LlmWordCounter() {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
-      setText(data.article);
+      updateText(data.article);
       countWords(data.article);
     } catch (error) {
       console.error("Failed to crawl article:", error);
@@ -118,6 +128,33 @@ export function LlmWordCounter() {
     }
   };
 
+  const handleModelChange = (modelId: string) => {
+    setSelectedModel(modelId);
+    if (text) {
+      countWords(text);
+    }
+  };
+
+  const updateText = (newText: string) => {
+    const words = newText.toLowerCase().match(/\b\w+\b/g) || [];
+    const wordCounts = new Map<string, number>();
+    for (const word of words) {
+      wordCounts.set(word, (wordCounts.get(word) || 0) + 1);
+    }
+    const sortedWords = Array.from(wordCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([word]) => word);
+    setWordsToCount(sortedWords);
+    const newTopWords = sortedWords.map(word => ({ word, count: wordCounts.get(word) || 0 }));
+    setTopWords(newTopWords);
+    setLlmCounts(new Array(newTopWords.length).fill(0));
+    setText(newText);
+    if (newText) {
+      countWords(newText);
+    }
+  };
+
   return (
     <Card className="w-full max-w-5xl mx-auto mt-10">
       <CardHeader>
@@ -125,11 +162,16 @@ export function LlmWordCounter() {
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
-          <p className="text-lg mb-2">Try testing one of our sample texts:</p>
+          <p className="text-lg mb-2">Select a model:</p>
           <div className="flex flex-wrap gap-2">
-            {sampleOptions.map((option) => (
-              <Button key={option} variant="outline" className="rounded-full">
-                {option}
+            {models.map((model) => (
+              <Button
+                key={model.id}
+                variant={selectedModel === model.id ? "default" : "outline"}
+                className="rounded-full"
+                onClick={() => handleModelChange(model.id)}
+              >
+                {model.name}
               </Button>
             ))}
           </div>
@@ -138,13 +180,13 @@ export function LlmWordCounter() {
           placeholder="Paste your text here..."
           className="min-h-[200px] resize-none"
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => updateText(e.target.value)}
           onKeyDown={handleKeyDown}
         />
         <div className="flex justify-between items-center text-sm text-muted-foreground">
           <span>{text.split(/\s+/).filter(Boolean).length}/1,000 words</span>
         </div>
-        {topWords.length > 0 && (
+        {topWords.length > 0 && llmCounts.length > 0 && llmCounts.length === topWords.length && (
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">Top 10 Most Frequent Words</h3>
             <Table>

@@ -15,7 +15,7 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 async def generate_article():
     prompt = "Generate a random article with a title, body, and conclusion."
     response = openai.Completion.create(
-        engine="gpt-4o",
+        engine="gpt-4o-mini",
         prompt=prompt,
         max_tokens=1000,
         n=1,
