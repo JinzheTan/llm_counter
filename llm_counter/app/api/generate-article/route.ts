@@ -1,49 +1,68 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
-import OpenAI from 'openai';
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { generateText } from 'ai';
+import { openai } from '@ai-sdk/openai';
 
 const articlesFilePath = path.join(process.cwd(), 'articles.json');
 
+// 添加CORS头
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 200, headers: corsHeaders });
+}
+
 export async function POST() {
   try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
+    const { text: article } = await generateText({
+      model: openai('gpt-4o-mini'), // 使用更便宜的模型
       messages: [
-        { role: "system", content: "You are a helpful assistant that generates articles." },
-        { role: "user", content: "Generate a random article with a title, body, and conclusion." }
+        { 
+          role: "system", 
+          content: "You are a helpful assistant that generates interesting articles with varied vocabulary." 
+        },
+        { 
+          role: "user", 
+          content: "Generate a random article (100-200 words) about any interesting topic. Include a title, body, and conclusion. Make sure to use diverse vocabulary and repeat some words naturally." 
+        }
       ],
-      max_tokens: 1000,
+      maxTokens: 800,
+      temperature: 0.7,
     });
 
-    const article = completion.choices[0].message.content;
-
-    // Read existing articles
-    let articles = [];
-    try {
-      const data = await fs.readFile(articlesFilePath, 'utf8');
-      articles = JSON.parse(data);
-    } catch (error) {
-      // If file doesn't exist or is empty, start with an empty array
+    if (!article) {
+      throw new Error('No article generated');
     }
 
-    // Add new article
-    articles.push({
-      id: articles.length + 1,
-      content: article,
-      timestamp: new Date().toISOString()
-    });
-
-    // Write updated articles back to file
-    await fs.writeFile(articlesFilePath, JSON.stringify(articles, null, 2));
-
-    return NextResponse.json({ article });
+    // 在 Vercel 上不存储文件，直接返回
+    return NextResponse.json({ article }, { headers: corsHeaders });
   } catch (error) {
     console.error('Error generating article:', error);
-    return NextResponse.json({ error: 'Failed to generate article' }, { status: 500 });
+    
+    let status = 500;
+    let message = 'Failed to generate article';
+    
+    if (error instanceof Error) {
+      if (error.message.includes('API key')) {
+        status = 401;
+        message = 'Invalid API key';
+      } else if (error.message.includes('quota') || error.message.includes('limit')) {
+        status = 429;
+        message = 'API rate limit exceeded';
+      } else if (error.message.includes('timeout')) {
+        status = 408;
+        message = 'Request timeout';
+      }
+    }
+    
+    return NextResponse.json(
+      { error: message },
+      { status, headers: corsHeaders }
+    );
   }
 }
